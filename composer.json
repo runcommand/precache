@@ -1,0 +1,20 @@
+{
+    "name": "danielbachhuber/wp-cli-pre-cache-command",
+    "description": "Proactively download and cache core, theme, and plugin files for later installation.",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Daniel Bachhuber",
+            "email": "daniel@handbuilt.co",
+            "homepage": "http://handbuilt.co",
+            "role": "Developer"
+        }
+    ],
+    "minimum-stability": "dev",
+    "require": {
+
+    },
+    "autoload": {
+        "files": [ "command.php" ]
+    }
+}
