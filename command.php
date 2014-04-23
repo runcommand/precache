@@ -6,6 +6,53 @@
 class WP_CLI_Pre_Cache_Command extends WP_CLI_Command {
 
 	/**
+	 * Proactively download and cache WordPress core.
+	 *
+	 * [--version=<version>]
+	 * : Specify the version to cache.
+	 *
+	 * [--locale=<locale>]
+	 * : Specify the language to cache.
+	 */
+	public function core( $args, $assoc_args ) {
+
+		$locale = isset( $assoc_args['locale'] ) ? $assoc_args['locale'] : 'en_US';
+
+		if ( isset( $assoc_args['version'] ) ) {
+			$version = $assoc_args['version'];
+			$download_url = $this->get_core_download_url( $version, $locale, 'tar.gz' );
+		} else {
+			$offer = $this->get_core_download_offer( $locale );
+			if ( ! $offer ) {
+				WP_CLI::error( "The requested locale ($locale) was not found." );
+			}
+			$version = $offer['current'];
+			$download_url = str_replace( '.zip', '.tar.gz', $offer['download'] );
+		}
+
+		$item = new stdClass;
+		$item->name = 'WordPress';
+		$item->download_link = $download_url;
+		$item->slug = $locale;
+		$item->version = $version;
+
+		// Do it our own way because cache_manager chokes on .tar.gz
+		$cache = WP_CLI::get_cache();
+		$cache_key = "core/$locale-$version.tar.gz";
+		$cache_file = $cache->has( $cache_key );
+
+		if ( $cache_file ) {
+			@unlink( $cache_file );
+		}
+
+		$tmp = download_url( $download_url );
+		$cache->import( $cache_key, $tmp );
+		@unlink( $tmp );
+
+		WP_CLI::success( "WordPress pre-cached." );
+	}
+
+	/**
 	 * Proactively download and cache one or more WordPress themes.
 	 *
 	 * [<theme>...]
@@ -77,6 +124,45 @@ class WP_CLI_Pre_Cache_Command extends WP_CLI_Command {
 		@unlink( $tmp );
 
 	}
+
+	/**
+	 * Gets download url based on version, locale and desired file type.
+	 *
+	 * @param $version
+	 * @param string $locale
+	 * @param string $file_type
+	 * @return string
+	 */
+	private function get_core_download_url( $version, $locale = 'en_US', $file_type = 'zip' ) {
+		if ('en_US' === $locale) {
+			$url = 'https://wordpress.org/wordpress-' . $version . '.' . $file_type;
+
+			return $url;
+		} else {
+			$url = sprintf(
+				'https://%s.wordpress.org/wordpress-%s-%s.' . $file_type,
+				substr($locale, 0, 2),
+				$version,
+				$locale
+			);
+
+			return $url;
+		}
+	}
+
+	private function get_core_download_offer( $locale ) {
+		$out = unserialize( self::_read(
+			'https://api.wordpress.org/core/version-check/1.6/?locale=' . $locale ) );
+
+		$offer = $out['offers'][0];
+
+		if ( $offer['locale'] != $locale ) {
+			return false;
+		}
+
+		return $offer;
+	}
+
 
 	/**
 	 * Prepare an API response for downloading a particular version of an item.
