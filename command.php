@@ -6,6 +6,35 @@
 class WP_CLI_Pre_Cache_Command extends WP_CLI_Command {
 
 	/**
+	 * Proactively download and cache one or more WordPress themes.
+	 *
+	 * [<theme>...]
+	 * : One or more themes to proactively cache.
+	 *
+	 * [--version=<version>]
+	 * : Specify the version to cache.
+	 */
+	public function theme( $args, $assoc_args ) {
+
+		foreach( $args as $slug ) {
+			$api = themes_api( 'theme_information', array( 'slug' => $slug ) );
+
+			if ( is_wp_error( $api ) ) {
+				return $api;
+			}
+
+			if ( isset( $assoc_args['version'] ) ) {
+				self::alter_api_response( $api, $assoc_args['version'] );
+			}
+
+			$this->pre_cache( 'theme', $api );
+		}
+
+		WP_CLI::success( "Theme(s) pre-cached." );
+
+	}
+
+	/**
 	 * Proactively download and cache one or more WordPress plugins.
 	 *
 	 * [<plugin>...]
