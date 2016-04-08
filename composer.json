@@ -17,5 +17,12 @@
     },
     "autoload": {
         "files": [ "command.php" ]
+    },
+    "extras": {
+        "commands": [
+            "precache core",
+            "precache plugin",
+            "precache theme"
+        ]
     }
 }

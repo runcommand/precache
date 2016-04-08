@@ -3,10 +3,12 @@
 /**
  * Proactively download and cache core, theme, and plugin files.
  */
-class WP_CLI_Pre_Cache_Command extends WP_CLI_Command {
+class WP_CLI_Precache_Command extends WP_CLI_Command {
 
 	/**
 	 * Proactively download and cache WordPress core.
+	 *
+	 * ## OPTIONS
 	 *
 	 * [--version=<version>]
 	 * : Specify the version to cache.
@@ -55,6 +57,8 @@ class WP_CLI_Pre_Cache_Command extends WP_CLI_Command {
 	/**
 	 * Proactively download and cache one or more WordPress themes.
 	 *
+	 * ## OPTIONS
+	 *
 	 * [<theme>...]
 	 * : One or more themes to proactively cache.
 	 *
@@ -83,6 +87,8 @@ class WP_CLI_Pre_Cache_Command extends WP_CLI_Command {
 
 	/**
 	 * Proactively download and cache one or more WordPress plugins.
+	 *
+	 * ## OPTIONS
 	 *
 	 * [<plugin>...]
 	 * : One or more plugins to proactively cache.
@@ -202,4 +208,4 @@ class WP_CLI_Pre_Cache_Command extends WP_CLI_Command {
 
 }
 
-WP_CLI::add_command( 'pre-cache', 'WP_CLI_Pre_Cache_Command' );
+WP_CLI::add_command( 'precache', 'WP_CLI_Precache_Command' );
