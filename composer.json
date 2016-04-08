@@ -1,6 +1,7 @@
 {
-    "name": "danielbachhuber/wp-cli-pre-cache-command",
+    "name": "runcommand/precache",
     "description": "Proactively download and cache core, theme, and plugin files for later installation.",
+    "homepage": "https://github.com/runcommand/precache",
     "license": "MIT",
     "authors": [
         {
