@@ -3,7 +3,7 @@
 /**
  * Proactively download and cache core, theme, and plugin files.
  */
-class WP_CLI_Precache_Command extends WP_CLI_Command {
+class WP_CLI_Precache_Command {
 
 	/**
 	 * Proactively download and cache WordPress core.
