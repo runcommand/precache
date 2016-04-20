@@ -4,6 +4,8 @@ use WP_CLI\Utils;
 
 /**
  * Proactively download and cache core, theme, and plugin files.
+ *
+ * @when before_wp_load
  */
 class WP_CLI_Precache_Command {
 
@@ -17,8 +19,6 @@ class WP_CLI_Precache_Command {
 	 *
 	 * [--locale=<locale>]
 	 * : Specify the language to cache.
-	 *
-	 * @when before_wp_load
 	 */
 	public function core( $args, $assoc_args ) {
 
@@ -71,7 +71,7 @@ class WP_CLI_Precache_Command {
 
 		$cache->import( $cache_key, $temp );
 
-		WP_CLI::success( "WordPress pre-cached as {$cache_key}" );
+		WP_CLI::success( "WordPress precached as {$cache_key}" );
 	}
 
 	/**
@@ -88,11 +88,18 @@ class WP_CLI_Precache_Command {
 	public function theme( $args, $assoc_args ) {
 
 		foreach( $args as $slug ) {
-			$api = themes_api( 'theme_information', array( 'slug' => $slug ) );
 
-			if ( is_wp_error( $api ) ) {
-				return $api;
+			$response = Utils\http_request( 'POST', 'https://api.wordpress.org/themes/info/1.0/', array(
+				'action' => 'theme_information',
+				'request' => serialize( (object) array(
+					'slug' => $slug,
+				) )
+			) );
+			if ( 200 !== $response->status_code ) {
+				WP_CLI::warning( "Invalid theme slug: {$slug}" );
+				continue;
 			}
+			$api = unserialize( $response->body );
 
 			if ( isset( $assoc_args['version'] ) ) {
 				self::alter_api_response( $api, $assoc_args['version'] );
@@ -101,7 +108,7 @@ class WP_CLI_Precache_Command {
 			$this->pre_cache( 'theme', $api );
 		}
 
-		WP_CLI::success( "Theme(s) pre-cached." );
+		WP_CLI::success( "Theme(s) precached." );
 
 	}
 
@@ -118,15 +125,14 @@ class WP_CLI_Precache_Command {
 	 */
 	public function plugin( $args, $assoc_args ) {
 
-		require_once ABSPATH.'wp-admin/includes/plugin.php';
-		require_once ABSPATH.'wp-admin/includes/plugin-install.php';
-
 		foreach( $args as $slug ) {
-			$api = plugins_api( 'plugin_information', array( 'slug' => $slug ) );
 
-			if ( is_wp_error( $api ) ) {
-				return $api;
+			$response = Utils\http_request( 'GET', 'https://api.wordpress.org/plugins/info/1.0/' . $slug );
+			if ( 200 !== $response->status_code ) {
+				WP_CLI::warning( "Invalid plugin slug: {$slug}" );
+				continue;
 			}
+			$api = unserialize( $response->body );
 
 			if ( isset( $assoc_args['version'] ) ) {
 				self::alter_api_response( $api, $assoc_args['version'] );
@@ -135,7 +141,7 @@ class WP_CLI_Precache_Command {
 			$this->pre_cache( 'plugin', $api );
 		}
 
-		WP_CLI::success( "Plugin(s) pre-cached." );
+		WP_CLI::success( "Plugin(s) precached." );
 	}
 
 	/**
@@ -143,12 +149,27 @@ class WP_CLI_Precache_Command {
 	 */
 	private function pre_cache( $item_type, $api ) {
 
-		$cache_manager = WP_CLI::get_http_cache_manager();
-		WP_CLI::log( sprintf( 'Caching %s (%s)', $api->name, $api->version ) );
-		$cache_manager->whitelist_package( $api->download_link, $item_type, $api->slug, $api->version );
-		$tmp = download_url( $api->download_link );
-		@unlink( $tmp );
+		WP_CLI::log( sprintf( 'Downloading %s %s...', $api->name, $api->version ) );
 
+		$cache = WP_CLI::get_cache();
+		$cache_key = "{$item_type}/{$api->slug}-{$api->version}.zip";
+		$cache_file = $cache->has( $cache_key );
+
+		$temp = \WP_CLI\Utils\get_temp_dir() . uniqid('wp_') . '.zip';
+
+		$headers = array( 'Accept' => 'application/json' );
+		$options = array(
+			'timeout' => 600,  // 10 minutes ought to be enough for everybody
+			'filename' => $temp
+		);
+
+		$response = Utils\http_request( 'GET', $api->download_link, null, $headers, $options );
+		if ( 20 != substr( $response->status_code, 0, 2 ) ) {
+			WP_CLI::error( "Couldn't access download URL (HTTP code {$response->status_code})" );
+		}
+
+		$cache->import( $cache_key, $temp );
+		WP_CLI::log( "{$api->name} precached as {$cache_key}" );
 	}
 
 	/**
@@ -206,6 +227,16 @@ class WP_CLI_Precache_Command {
 		}
 	}
 
+	private static function _read( $url ) {
+		$headers = array('Accept' => 'application/json');
+		$response = Utils\http_request( 'GET', $url, null, $headers, array( 'timeout' => 30 ) );
+		if ( 200 === $response->status_code ) {
+			return $response->body;
+		} else {
+			WP_CLI::error( "Couldn't fetch response from {$url} (HTTP code {$response->status_code})" );
+		}
+	}
+
 	/**
 	 * Prepare an API response for downloading a particular version of an item.
 	 *
@@ -230,9 +261,8 @@ class WP_CLI_Precache_Command {
 			$response->download_link = $link . $response->slug . '.' . $version .'.zip';
 			$response->version = $version;
 
-			// check if the requested version exists
-			$response = wp_remote_head( $response->download_link );
-			if ( 200 !== wp_remote_retrieve_response_code( $response ) ) {
+			$response = Utils\http_request( 'HEAD', $response->download_link, null );
+			if ( 200 !== $response->status_code ) {
 				\WP_CLI::error( sprintf(
 					"Can't find the requested %s's version %s in the WordPress.org %s repository.",
 					$download_type, $version, $download_type ) );
