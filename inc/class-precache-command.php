@@ -1,5 +1,7 @@
 <?php
 
+use WP_CLI\Utils;
+
 /**
  * Proactively download and cache core, theme, and plugin files.
  */
@@ -15,16 +17,18 @@ class WP_CLI_Precache_Command {
 	 *
 	 * [--locale=<locale>]
 	 * : Specify the language to cache.
+	 *
+	 * @when before_wp_load
 	 */
 	public function core( $args, $assoc_args ) {
 
-		$locale = isset( $assoc_args['locale'] ) ? $assoc_args['locale'] : 'en_US';
+		$locale = \WP_CLI\Utils\get_flag_value( $assoc_args, 'locale', 'en_US' );
 
 		if ( isset( $assoc_args['version'] ) ) {
 			$version = $assoc_args['version'];
-			$download_url = $this->get_core_download_url( $version, $locale, 'tar.gz' );
+			$download_url = $this->get_download_url($version, $locale, 'tar.gz');
 		} else {
-			$offer = $this->get_core_download_offer( $locale );
+			$offer = $this->get_download_offer( $locale );
 			if ( ! $offer ) {
 				WP_CLI::error( "The requested locale ($locale) was not found." );
 			}
@@ -32,26 +36,42 @@ class WP_CLI_Precache_Command {
 			$download_url = str_replace( '.zip', '.tar.gz', $offer['download'] );
 		}
 
-		$item = new stdClass;
-		$item->name = 'WordPress';
-		$item->download_link = $download_url;
-		$item->slug = $locale;
-		$item->version = $version;
+		WP_CLI::log( sprintf( 'Downloading WordPress %s (%s)...', $version, $locale ) );
 
-		// Do it our own way because cache_manager chokes on .tar.gz
 		$cache = WP_CLI::get_cache();
-		$cache_key = "core/$locale-$version.tar.gz";
+		$cache_key = "core/wordpress-{$version}-{$locale}.tar.gz";
 		$cache_file = $cache->has( $cache_key );
 
-		if ( $cache_file ) {
-			@unlink( $cache_file );
+		$temp = \WP_CLI\Utils\get_temp_dir() . uniqid('wp_') . '.tar.gz';
+
+		$headers = array( 'Accept' => 'application/json' );
+		$options = array(
+			'timeout' => 600,  // 10 minutes ought to be enough for everybody
+			'filename' => $temp
+		);
+
+		$response = Utils\http_request( 'GET', $download_url, null, $headers, $options );
+		if ( 404 == $response->status_code ) {
+			WP_CLI::error( "Release not found. Double-check locale or version." );
+		} else if ( 20 != substr( $response->status_code, 0, 2 ) ) {
+			WP_CLI::error( "Couldn't access download URL (HTTP code {$response->status_code})" );
 		}
 
-		$tmp = download_url( $download_url );
-		$cache->import( $cache_key, $tmp );
-		@unlink( $tmp );
+		$md5_response = Utils\http_request( 'GET', $download_url . '.md5' );
+		if ( 20 != substr( $md5_response->status_code, 0, 2 ) ) {
+			WP_CLI::error( "Couldn't access md5 hash for release (HTTP code {$response->status_code})" );
+		}
 
-		WP_CLI::success( "WordPress pre-cached." );
+		$md5_file = md5_file( $temp );
+		if ( $md5_file === $md5_response->body ) {
+			WP_CLI::log( 'md5 hash verified: ' . $md5_file );
+		} else {
+			WP_CLI::error( "md5 hash for download ({$md5_file}) is different than the release hash ({$md5_response->body})" );
+		}
+
+		$cache->import( $cache_key, $temp );
+
+		WP_CLI::success( "WordPress pre-cached as {$cache_key}" );
 	}
 
 	/**
@@ -156,7 +176,7 @@ class WP_CLI_Precache_Command {
 		}
 	}
 
-	private function get_core_download_offer( $locale ) {
+	private function get_download_offer( $locale ) {
 		$out = unserialize( self::_read(
 			'https://api.wordpress.org/core/version-check/1.6/?locale=' . $locale ) );
 
@@ -169,6 +189,22 @@ class WP_CLI_Precache_Command {
 		return $offer;
 	}
 
+	private function get_download_url($version, $locale = 'en_US', $file_type = 'zip') {
+		if ('en_US' === $locale) {
+			$url = 'https://wordpress.org/wordpress-' . $version . '.' . $file_type;
+
+			return $url;
+		} else {
+			$url = sprintf(
+				'https://%s.wordpress.org/wordpress-%s-%s.' . $file_type,
+				substr($locale, 0, 2),
+				$version,
+				$locale
+			);
+
+			return $url;
+		}
+	}
 
 	/**
 	 * Prepare an API response for downloading a particular version of an item.
