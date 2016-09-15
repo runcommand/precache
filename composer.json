@@ -22,6 +22,17 @@
             "precache core",
             "precache plugin",
             "precache theme"
-        ]
+        ],
+        "readme": {
+            "sections": [
+                "Using",
+                "Installing",
+                "Support"
+            ],
+            "support": {
+                "body": "https://raw.githubusercontent.com/runcommand/runcommand-theme/master/bin/readme-partials/support-open-source.md"
+            },
+            "show_powered_by": false
+        }
     }
 }
