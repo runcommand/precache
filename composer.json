@@ -18,7 +18,7 @@
     "autoload": {
         "files": [ "command.php" ]
     },
-    "extras": {
+    "extra": {
         "commands": [
             "precache core",
             "precache plugin",
