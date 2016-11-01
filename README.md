@@ -3,7 +3,7 @@ runcommand/precache
 
 Proactively download and cache core, theme, and plugin files for later installation.
 
-[![Build Status](https://travis-ci.org/runcommand/precache.svg?branch=master)](https://travis-ci.org/runcommand/precache)
+[![runcommand open source](https://runcommand.io/wp-content/themes/runcommand-theme/bin/shields/runcommand-open-source.svg)](https://runcommand.io/pricing/) [![Build Status](https://travis-ci.org/runcommand/media-sizes.svg?branch=master)](https://travis-ci.org/runcommand/media-sizes)
 
 Quick links: [Using](#using) | [Installing](#installing) | [Support](#support)
 
