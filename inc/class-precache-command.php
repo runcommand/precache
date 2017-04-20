@@ -127,7 +127,7 @@ class WP_CLI_Precache_Command {
 
 		foreach( $args as $slug ) {
 
-			$response = Utils\http_request( 'GET', 'https://api.wordpress.org/plugins/info/1.0/' . $slug );
+			$response = Utils\http_request( 'GET', 'https://api.wordpress.org/plugins/info/1.0/' . $slug . '.php' );
 			if ( 200 !== $response->status_code ) {
 				WP_CLI::warning( "Invalid plugin slug: {$slug}" );
 				continue;
